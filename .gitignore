@@ -1,0 +1,30 @@
+# do not track
+lib
+bin
+build
+dump
+test
+util
+install
+out
+.vs/*
+!.vs/launch.vs.json
+
+# test object
+*.o
+*.tst
+*.pyc
+*.zip
+**/logbook.txt
+*.mha
+
+# text file
+# *.txt
+
+# phantom file
+*.vox
+
+# big file
+*.big
+
+
