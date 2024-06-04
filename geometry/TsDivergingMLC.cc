@@ -1,12 +1,13 @@
 #include "TsDivergingMLC.hh"
 
 #include "TsParameterManager.hh"
-
+#include "G4ios.hh"
+#include "G4LogicalVolume.hh"
 #include "G4Box.hh"
-#include "G4Trap.hh"
 #include "G4UIcommand.hh"
 #include "G4SystemOfUnits.hh"
-#include "G4LogicalVolume.hh"
+#include "G4Trap.hh"
+#include "G4GenericTrap.hh"
 
 TsDivergingMLC::TsDivergingMLC(TsParameterManager* pM, TsMaterialManager* mM, TsGeometryManager* gM,
 							   TsVGeometryComponent* parentComponent, G4VPhysicalVolume* parentVolume, G4String& name)
@@ -21,28 +22,56 @@ TsDivergingMLC::~TsDivergingMLC()
 void TsDivergingMLC::UpdateForSpecificParameterChange(G4String parameter)
 {
 	if (parameter == GetFullParmNameLower("NegativeFieldSetting") || parameter == GetFullParmNameLower("PositiveFieldSetting")) {
-		fNegFieldSettings  = fPm->GetDoubleVector(GetFullParmName("NegativeFieldSetting"), "Length"); // Var should be fNegFieldSettings
-		fPosFieldSettings = fPm->GetDoubleVector(GetFullParmName("PositiveFieldSetting"), "Length");
-		G4ThreeVector xPosLeafPositions;
-		G4ThreeVector XNegLeafPositions;
-		for (int i= 0; i < fNLeavesPerSide; ++i) {
-			if ( (fNegFieldSettings[i] - fPosFieldSettings[i]) < 0.0 ) {
-				G4cerr << "Topas is exiting due to a serious error in definition of component: " << fName << G4endl;
-				G4cerr << "Detected Leaf collision at leaf number " << i << G4endl;
-				G4cerr << "NegativeFieldSetting: " << fNegFieldSettings[i]/cm << " (cm)" << G4endl;
-				G4cerr << "PositiveFieldSetting: " << fPosFieldSettings[i]/cm << " (cm) "<< G4endl;
-				fPm->AbortSession(1);
-			}
+		G4double* xPlusOpenNew = fPm->GetDoubleVector(GetFullParmName("PositiveFieldSetting"), "Length");
+		G4double* xMinusOpenNew = fPm->GetDoubleVector(GetFullParmName("NegativeFieldSetting"), "Length");
+		G4double* leaf_widths = fPm->GetDoubleVector(GetFullParmName("LeafWidths"), "Length");
 
-			xPosLeafPositions = (fXPosLeaves[i])->GetTranslation();
-			XNegLeafPositions = (fXNegLeaves[i])->GetTranslation();
-			xPosLeafPositions.setX(fLeafHalfLength + fNegFieldSettings[i]);
-			XNegLeafPositions.setX((-1)*fLeafHalfLength + fPosFieldSettings[i]);
-			(fXPosLeaves[i])->SetTranslation(xPosLeafPositions);
-			(fXNegLeaves[i])->SetTranslation(XNegLeafPositions);
+		G4double CurrentWidth = -fHalfTotalMLCWidth;
+		for (int i = 0; i < fNbOfLeavesPerSide; i++) {
+			G4double posOpen = xPlusOpenNew[i];
+			G4double negOpen = xMinusOpenNew[i];
+			G4double widht = leaf_widths[i];
+
+			//Check if any of the leaves changed position
+			if ((posOpen != fXPlusLeavesOpen[i]) || (negOpen != fXMinusLeavesOpen[i])) {
+				if ((posOpen - negOpen) < 0.0) {
+					std::cerr << "Detected Leaf collision at " << i << " th leaf: XPlusLeaf "
+						<< posOpen / cm << " (cm), XMinusLeaf "
+						<< negOpen / cm << " (cm) " << std::endl;
+					fPm->AbortSession(1);
+				}
+
+				G4ThreeVector xpl;
+				G4ThreeVector xml;
+
+				if (fIsXMLC) {
+					xpl = G4ThreeVector((fLeafHalfLength + posOpen) / fMagnification, (CurrentWidth + (widht * 0.5)) / fMagnification, 0);
+					xml = G4ThreeVector((-(fLeafHalfLength)+negOpen) / fMagnification, (CurrentWidth + (widht * 0.5)) / fMagnification, 0);
+				}
+				else {
+					xpl = G4ThreeVector((CurrentWidth + (widht * 0.5)) / fMagnification, (fLeafHalfLength + posOpen) / fMagnification, 0);
+					xml = G4ThreeVector((CurrentWidth + (widht * 0.5)) / fMagnification, (-(fLeafHalfLength)+negOpen) / fMagnification, 0);
+				}
+
+				// Construct the new Leaves
+				std::pair<G4GenericTrap*, G4GenericTrap*> Leaves = ConstructLeafPair(i, fLeafThickness, posOpen, negOpen, widht, CurrentWidth, fIsXMLC);
+
+
+				*(fGenericTrapXPlusLeaves[i]) = *(Leaves.first);
+				*(fGenericTrapXMinusLeaves[i]) = *(Leaves.second);
+
+				(fPhysicalXPlusLeaves[i])->SetTranslation(xpl);
+				(fPhysicalXMinusLeaves[i])->SetTranslation(xml);
+
+				fXPlusLeavesOpen[i] = posOpen;
+				fXMinusLeavesOpen[i] = negOpen;
+			}
+			CurrentWidth += widht;
 		}
 		AddToReoptimizeList(fEnvelopeLog);
-	} else {
+
+	}
+	else {
 		// For any other parameters, fall back to the base class Update method
 		TsVGeometryComponent::UpdateForSpecificParameterChange(parameter);
 	}
@@ -52,145 +81,226 @@ void TsDivergingMLC::UpdateForSpecificParameterChange(G4String parameter)
 G4VPhysicalVolume* TsDivergingMLC::Construct()
 {
 	BeginConstruction();
-	fXPosLeaves.clear();
-	fXNegLeaves.clear();
+	fPhysicalXPlusLeaves.clear();
+	fPhysicalXMinusLeaves.clear();
+	fLogicXPlusLeaves.clear();
+	fLogicXMinusLeaves.clear();
+	fGenericTrapXPlusLeaves.clear();
+	fGenericTrapXMinusLeaves.clear();
 
-	fNLeavesPerSide = fPm->GetVectorLength(GetFullParmName("LeafWidths"));
-
-	G4int nPosFieldSettings = fPm->GetVectorLength(GetFullParmName("PositiveFieldSetting"));
-	if (fNLeavesPerSide != nPosFieldSettings) {
-		G4cerr << "Topas is exiting due to a serious error in definition of component: " << fName << G4endl;
-		G4cerr << GetFullParmName("LeafWidths") << " specifies number of leaves: " << fNLeavesPerSide << G4endl;
-		G4cerr << "while " << G4endl;
-		G4cerr << GetFullParmName("PositiveFieldSetting") << " specifies number of leaves: " << nPosFieldSettings << G4endl;
+	//Count leaves
+	fNbOfLeavesPerSide = fPm->GetVectorLength(GetFullParmName("LeafWidths"));
+	const G4int n_xl  = fPm->GetVectorLength(GetFullParmName("PositiveFieldSetting"));
+	const G4int n_xr  = fPm->GetVectorLength(GetFullParmName("NegativeFieldSetting"));
+	if (fNbOfLeavesPerSide != n_xl) {
+		std::cerr << "Number of Width does not Match to XPlusLeaves: Widths = " << fNbOfLeavesPerSide << ", XPlusLeavesOpen = "<< n_xl << std::endl;
 		fPm->AbortSession(1);
+	} else {
+		if (fNbOfLeavesPerSide != n_xr) {
+				std::cerr << "Number of Width does not Match to XMinusLeaves: Widths = " << fNbOfLeavesPerSide << ", XPlusLeavesOpen = "<< n_xr << std::endl;
+				fPm->AbortSession(1);
+		}
 	}
 
-	G4int nNegFieldSettings = fPm->GetVectorLength(GetFullParmName("NegativeFieldSetting"));
-	if (fNLeavesPerSide != nNegFieldSettings) {
-		G4cerr << "Topas is exiting due to a serious error in definition of component: " << fName << G4endl;
-		G4cerr << GetFullParmName("LeafWidths") << " specifies number of leaves: " << fNLeavesPerSide << G4endl;
-		G4cerr << "while " << G4endl;
-		G4cerr << GetFullParmName("NegativeFieldSetting") << " specifies number of leaves: " << nNegFieldSettings << G4endl;
-		fPm->AbortSession(1);
-	}
-
-	fNegFieldSettings  = fPm->GetDoubleVector(GetFullParmName("PositiveFieldSetting"), "Length");
-	fPosFieldSettings = fPm->GetDoubleVector(GetFullParmName("NegativeFieldSetting"), "Length");
-
-	fLeafHalfLength = 0.5 * fPm->GetDoubleParameter(GetFullParmName("Length"), "Length"); //x
-	G4double leafThickness = fPm->GetDoubleParameter(GetFullParmName("Thickness"), "Length"); //z
-	G4double* leafWidths = fPm->GetDoubleVector(GetFullParmName("LeafWidths"), "Length");  //y
-
+	//LeafHalfLength: x of leaf, leaf_thickness: z of leaf, and vt: various y of leaf
+	fLeafHalfLength = (0.5)*fPm->GetDoubleParameter(GetFullParmName("Length"), "Length"); //x
+	fLeafThickness  = fPm->GetDoubleParameter(GetFullParmName("Thickness"), "Length");    //z
+	G4double* leaf_widths   = fPm->GetDoubleVector(GetFullParmName("LeafWidths"), "Length");      //y
 	if ( fPm->ParameterExists(GetFullParmName("MaximumLeafOpen")) ) {
 		fMaximumLeafOpen = fPm->GetDoubleParameter(GetFullParmName("MaximumLeafOpen"), "Length");
-	} else {
-		fMaximumLeafOpen = 6.0 * fLeafHalfLength;
+	} 
+	else {
+		fMaximumLeafOpen = 6.0*fLeafHalfLength;
 	}
 
-	G4double SAD = fPm->GetDoubleParameter(GetFullParmName("SAD"), "Length");
-	if (SAD < 0) {
-		G4cerr << "Topas is exiting due to a serious error in definition of component: " << fName << G4endl;
-		G4cerr << GetFullParmName("SAD") << " must be positive, but had value: " << SAD << G4endl;
-		fPm->AbortSession(1);
+	fXPlusLeavesOpen     = fPm->GetDoubleVector(GetFullParmName("PositiveFieldSetting"), "Length");
+	fXMinusLeavesOpen    = fPm->GetDoubleVector(GetFullParmName("NegativeFieldSetting"), "Length");
+	fSAD                 = fPm->GetDoubleParameter(GetFullParmName("SAD"), "Length");
+	fSUSD                = fPm->GetDoubleParameter(GetFullParmName("SourceToUpstreamSurfaceDistance"), "Length");
+	fMagnification       = fSAD/fSUSD;
+	fLeafThickness  = fPm->GetDoubleParameter(GetFullParmName("Thickness"), "Length") * fMagnification;    //z
+	G4String Travelangle = fPm->GetStringParameter(GetFullParmName("LeafTravelAxis"));
+	G4double DistanceSourceToMLCcenter = fSUSD + (fLeafThickness * 0.5/fMagnification);
+
+	if (Travelangle == "Yb")
+		fIsXMLC = false;
+	else if (Travelangle == "Xb")
+		fIsXMLC = true;
+	else {
+		std::cerr << "LeafTravelAxis need to be either Xb or Yb. LeafTravelAxis = " << Travelangle << std::endl;
+		fPm->AbortSession(1); 	
 	}
-
-	G4double SourceToUpstreamSurfaceDistance = fPm->GetDoubleParameter(GetFullParmName("SourceToUpstreamSurfaceDistance"), "Length");
-
-	G4String transZName = "dc:Ge/" + fName + "/TransZ";
-	G4double distanceSource2MLCcenter = SourceToUpstreamSurfaceDistance + leafThickness * 0.5;
-
-	G4double trapezoidSizeFactor = leafThickness / SAD;
-	G4double upstreamFactor = (distanceSource2MLCcenter - leafThickness * 0.5) / SAD;
-	G4double downstreamFactor = (distanceSource2MLCcenter + leafThickness * 0.5) / SAD;
-	G4double ySum = 0.0;
-	for (G4int i = 0; i < fNLeavesPerSide; ++i) {
-		ySum += leafWidths[i];
-
-		if ( fabs(fNegFieldSettings[i]) > fMaximumLeafOpen || fabs(fPosFieldSettings[i]) > fMaximumLeafOpen) {
-			G4cerr << "Topas is exiting due to a serious error in definition of component: " << fName << G4endl;
-			G4cerr << "Leaf pair " << i << " is open wider than the limit: " << fMaximumLeafOpen/cm << " (cm)" << G4endl;
-			G4cerr << "If you want to adjust this limit, use the parameter: " << GetFullParmName("MaximumLeafOpen") << G4endl;
-			fPm->AbortSession(1);
+	if (fSAD < 0) {
+		std::cerr << "SAD must be positive. SAD = " << fSAD << std::endl;
+		fPm->AbortSession(1); 										// Need to be modified to return false
+	}
+	//test
+	G4double TotalMLCWidth = 0.0;
+	for (G4int i = 0; i < fNbOfLeavesPerSide; i++) {
+		TotalMLCWidth += leaf_widths[i];
+		//Prevent leaf opening over its limit.
+		if ( fabs(fXPlusLeavesOpen[i]) > fMaximumLeafOpen || fabs(fXMinusLeavesOpen[i]) > fMaximumLeafOpen) {
+				std::cerr << i << " th Leaf tried to open more than the limit: " << fMaximumLeafOpen/cm << " (cm)" << std::endl;
+				fPm->AbortSession(1);
 		}
-
-		if ( (fNegFieldSettings[i] - fPosFieldSettings[i]) < 0.0 ) {
-			G4cerr << "Topas is exiting due to a serious error in definition of component: " << fName << G4endl;
-			G4cerr << "Detected Leaf collision at leaf number " << i << G4endl;
-			G4cerr << "NegativeFieldSetting: " << fNegFieldSettings[i]/cm << " (cm)" << G4endl;
-			G4cerr << "PositiveFieldSetting: " << fPosFieldSettings[i]/cm << " (cm) "<< G4endl;
-			fPm->AbortSession(1);
+		//Leaf collision detection.
+		if ( (fXPlusLeavesOpen[i] - fXMinusLeavesOpen[i]) < 0.0 ) {
+				std::cerr << "Detected Leaf collision at "<< i <<" th leaf: XPlusLeaf "
+				<< fXPlusLeavesOpen[i]/cm << " (cm), XMinusLeaf "
+			 	<< fXMinusLeavesOpen[i]/cm << " (cm) "<< std::endl;
+				fPm->AbortSession(1);
 		}
 	}
-
-	G4double yCentralPos = -1 * (ySum);
-	G4double* xUpstreamHigh = new G4double[fNLeavesPerSide];
-	G4double* xUpstreamCenter = new G4double[fNLeavesPerSide];
-	G4double* xUpstreamLow = new G4double[fNLeavesPerSide];
-	G4double* xDownstreamHigh = new G4double[fNLeavesPerSide];
-	G4double* xDownstreamCenter = new G4double[fNLeavesPerSide];
-	G4double* xDownstreamLow = new G4double[fNLeavesPerSide];
-	for (G4int i = 0; i < fNLeavesPerSide; ++i)
-	{
-		if (i == 0) {
-			yCentralPos = yCentralPos + leafWidths[i];
-		} else {
-			yCentralPos = yCentralPos + (leafWidths[i-1] + leafWidths[i]);
-		}
-
-		xUpstreamHigh[i] = upstreamFactor * (yCentralPos + leafWidths[i]);
-		xUpstreamCenter[i] = upstreamFactor * yCentralPos;
-		xUpstreamLow[i] = upstreamFactor * (yCentralPos - leafWidths[i]);
-
-		xDownstreamHigh[i] = downstreamFactor * (yCentralPos + leafWidths[i]);
-		xDownstreamCenter[i] = downstreamFactor * yCentralPos;
-		xDownstreamLow[i] = downstreamFactor * (yCentralPos - leafWidths[i]);
-	}
-
-	G4RotationMatrix* positiveJawROT = new G4RotationMatrix;
-	G4RotationMatrix* negativeJawROT = new G4RotationMatrix;
-
-	positiveJawROT->rotateX(0 * deg);
-	positiveJawROT->rotateY(0 * deg);
-	positiveJawROT->rotateZ(90 * deg);
-
-	negativeJawROT->rotateX(0 * deg);
-	negativeJawROT->rotateY(0 * deg);
-	negativeJawROT->rotateZ(90 * deg);
 
 	G4String envelopeMaterialName = fParentComponent->GetResolvedMaterialName();
-	G4Box* wholeBoxSolid = new G4Box(fName, fLeafHalfLength * 2 + fMaximumLeafOpen * 2, ySum, 0.5 * leafThickness);
-	fEnvelopeLog = CreateLogicalVolume(fName, envelopeMaterialName, wholeBoxSolid);
+	G4Box* svWholeBox; 
+	if (fIsXMLC)
+		svWholeBox = new G4Box(fName, fLeafHalfLength + fMaximumLeafOpen, TotalMLCWidth/2, 0.5 * fLeafThickness / fMagnification);
+	else
+		svWholeBox = new G4Box(fName, TotalMLCWidth/2, fLeafHalfLength + fMaximumLeafOpen, 0.5 * fLeafThickness / fMagnification);
+	fEnvelopeLog  = CreateLogicalVolume(fName, envelopeMaterialName, svWholeBox);
 	fEnvelopePhys = CreatePhysicalVolume(fEnvelopeLog);
 
-	for (G4int i = 0; i < fNLeavesPerSide; ++i)
-	{
-		G4String leafNumberString = G4UIcommand::ConvertToString(i);
-		G4Trap* posLeafSolid = new G4Trap(fName + "_gLeaf", leafThickness / 2.,
-											atan((xDownstreamCenter[i] - xUpstreamCenter[i]) / leafThickness) * 0.25,
-											0 * deg, (fLeafHalfLength - trapezoidSizeFactor * fNegFieldSettings[i]),
-											(xUpstreamHigh[i] - xUpstreamLow[i]), (xUpstreamHigh[i] - xUpstreamLow[i]),
-											0, fLeafHalfLength, (xDownstreamCenter[i] - xDownstreamLow[i]),
-											(xDownstreamCenter[i] - xDownstreamLow[i]), 0);
+	fHalfTotalMLCWidth = TotalMLCWidth/2;
 
-		G4Trap* negLeafSolid = new G4Trap(fName + "_gLeaf", leafThickness / 2.,
-											atan((xDownstreamCenter[i] - xUpstreamCenter[i]) / leafThickness) * 0.25, 0 * deg,
-											fLeafHalfLength + trapezoidSizeFactor * fPosFieldSettings[i], xUpstreamHigh[i] - xUpstreamLow[i],
-											xUpstreamHigh[i] - xUpstreamLow[i], 0, fLeafHalfLength,
-											xDownstreamCenter[i] - xDownstreamLow[i],
-											xDownstreamCenter[i] - xDownstreamLow[i], 0);
+	G4double CurrentWidth = -fHalfTotalMLCWidth;
+	for (G4int i = 0; i < fNbOfLeavesPerSide; i++) {
+		G4String id_string = G4UIcommand::ConvertToString(i);
+		G4double xPosOpen  = fXPlusLeavesOpen[i];
+		G4double xNegOpen  = fXMinusLeavesOpen[i];
+		G4double leafWidth = leaf_widths[i];
 
-		G4LogicalVolume* negativelLeaf  = CreateLogicalVolume(negLeafSolid);
-		G4LogicalVolume* positivelLeaf  = CreateLogicalVolume(posLeafSolid);
-		G4String volName = fName + "_X+Leaf"+leafNumberString;
-		G4ThreeVector* threeVecPlus = new G4ThreeVector(fLeafHalfLength + (fNegFieldSettings[i] * upstreamFactor), (xUpstreamCenter[i] + xDownstreamCenter[i]) * 0.5, 0.0);
-		G4VPhysicalVolume* pPlusLeaf = CreatePhysicalVolume(volName, positivelLeaf, positiveJawROT, threeVecPlus, fEnvelopePhys);
+		std::pair<G4GenericTrap*,G4GenericTrap*> Leaves = ConstructLeafPair(i,fLeafThickness,xPosOpen,xNegOpen,leafWidth, CurrentWidth, fIsXMLC);
 
-		volName = fName + "_X-Leaf"+leafNumberString;
-		G4ThreeVector* threeVecMinus = new G4ThreeVector(- fLeafHalfLength + (fPosFieldSettings[i] * upstreamFactor), (xUpstreamCenter[i] + xDownstreamCenter[i]) * 0.5, 0.0);
-		G4VPhysicalVolume* pMinusLeaf = CreatePhysicalVolume(volName, negativelLeaf, negativeJawROT, threeVecMinus, fEnvelopePhys);
-		fXPosLeaves.push_back(pPlusLeaf);
-		fXNegLeaves.push_back(pMinusLeaf);
+		G4String volName                = "X+Leaf"+id_string;
+		G4GenericTrap* positivesvLeaf   = Leaves.first;
+		G4LogicalVolume* positivelLeaf  = CreateLogicalVolume(positivesvLeaf);
+
+		volName                         = "X-Leaf"+id_string;
+		G4GenericTrap* negativesvLeaf   = Leaves.second;
+		G4LogicalVolume* negativelLeaf  = CreateLogicalVolume(negativesvLeaf);
+
+		G4ThreeVector* threeVecPlus;
+		G4ThreeVector* threeVecMinus;
+
+		if (fIsXMLC) {
+			threeVecPlus     = new G4ThreeVector(((fLeafHalfLength) + xPosOpen)/fMagnification, (CurrentWidth + (leafWidth*0.5))/fMagnification, 0);
+			threeVecMinus    = new G4ThreeVector((-(fLeafHalfLength) + xNegOpen)/fMagnification, (CurrentWidth + (leafWidth*0.5))/fMagnification, 0);
+		}
+		else {
+			threeVecPlus     = new G4ThreeVector((CurrentWidth + (leafWidth*0.5))/fMagnification, ((fLeafHalfLength) + xPosOpen)/fMagnification, 0);
+			threeVecMinus    = new G4ThreeVector((CurrentWidth + (leafWidth*0.5))/fMagnification, (-(fLeafHalfLength) + xNegOpen)/fMagnification, 0);
+		}
+
+		G4VPhysicalVolume* pPlusLeaf    = CreatePhysicalVolume(volName, positivelLeaf, 0, threeVecPlus, fEnvelopePhys);
+		G4VPhysicalVolume* pMinusLeaf   = CreatePhysicalVolume(volName, negativelLeaf, 0, threeVecMinus, fEnvelopePhys);
+		
+		fPhysicalXPlusLeaves.push_back(pPlusLeaf);
+		fPhysicalXMinusLeaves.push_back(pMinusLeaf);
+		fLogicXPlusLeaves.push_back(positivelLeaf);
+		fLogicXMinusLeaves.push_back(negativelLeaf);
+		fGenericTrapXPlusLeaves.push_back(Leaves.first);
+		fGenericTrapXMinusLeaves.push_back(Leaves.second);
+
+		CurrentWidth += leafWidth;
 	}
 	return fEnvelopePhys;
+}
+
+
+std::pair<G4GenericTrap*,G4GenericTrap*> TsDivergingMLC::ConstructLeafPair(G4int leafID, G4double thick, G4double posOpen, G4double negOpen, G4double leafWidth, G4double currentWidth, G4bool isX) {
+	// X Deformation: Between the leaf openings
+	G4double positiveXDeformation = 0;
+	G4double negativeXDeformation = 0;
+	
+	// Y Deformation: Between Two consecutive leaves
+	G4double forwardYDeformation  = 0;
+	G4double backwardYDeformation = 0;
+
+	// Calculate Deformations
+	positiveXDeformation =  thick * posOpen / fSAD;
+	negativeXDeformation = -thick * negOpen / fSAD;
+
+	forwardYDeformation  = thick*(currentWidth + leafWidth)/fSAD;
+	backwardYDeformation = thick*(currentWidth)/fSAD;
+
+	std::vector<G4TwoVector> posVertexes;
+	std::vector<G4TwoVector> negVertexes;
+
+	G4double Positive_Posterior_nX = -fLeafHalfLength+positiveXDeformation;
+	G4double Positive_Posterior_pX = fLeafHalfLength;
+	G4double Positive_Posterior_nY = backwardYDeformation-leafWidth*0.5;
+	G4double Positive_Posterior_pY = forwardYDeformation+leafWidth*0.5;
+
+	G4double Positive_Anterior_nX = -fLeafHalfLength;
+	G4double Positive_Anterior_pX =  fLeafHalfLength;
+	G4double Positive_Anterior_nY = -leafWidth*0.5;
+	G4double Positive_Anterior_pY = +leafWidth*0.5;
+
+	G4double Negative_Posterior_nX = -fLeafHalfLength;
+	G4double Negative_Posterior_pX = fLeafHalfLength-negativeXDeformation;
+	G4double Negative_Posterior_nY = backwardYDeformation-leafWidth*0.5;
+	G4double Negative_Posterior_pY = forwardYDeformation+leafWidth*0.5;
+
+	G4double Negative_Anterior_nX = -fLeafHalfLength;
+	G4double Negative_Anterior_pX =  fLeafHalfLength;
+	G4double Negative_Anterior_nY = -leafWidth*0.5;
+	G4double Negative_Anterior_pY = +leafWidth*0.5;
+
+	if (isX) {
+		//Posterior To Source
+		posVertexes.push_back(G4TwoVector(Positive_Posterior_nX,Positive_Posterior_nY)/fMagnification); // -X, -Y, -Z
+		posVertexes.push_back(G4TwoVector(Positive_Posterior_nX,Positive_Posterior_pY)/fMagnification); // -X, +Y, -Z
+		posVertexes.push_back(G4TwoVector(Positive_Posterior_pX,Positive_Posterior_pY)/fMagnification); // +X, +Y, -Z
+		posVertexes.push_back(G4TwoVector(Positive_Posterior_pX,Positive_Posterior_nY)/fMagnification); // +X, -Y, -Z
+
+		//Anterior to Source
+		posVertexes.push_back(G4TwoVector(Positive_Anterior_nX,Positive_Anterior_nY)/fMagnification); // -X, -Y, +Z
+		posVertexes.push_back(G4TwoVector(Positive_Anterior_nX,Positive_Anterior_pY)/fMagnification); // -X, +Y, +Z
+		posVertexes.push_back(G4TwoVector(Positive_Anterior_pX,Positive_Anterior_pY)/fMagnification); // +X, +Y, +Z
+		posVertexes.push_back(G4TwoVector(Positive_Anterior_pX,Positive_Anterior_nY)/fMagnification); // +X, -Y, +Z
+
+		
+		//Posterior to Source
+		negVertexes.push_back(G4TwoVector(Negative_Posterior_nX,Negative_Posterior_nY)/fMagnification); // -X -Y, -Z
+		negVertexes.push_back(G4TwoVector(Negative_Posterior_nX,Negative_Posterior_pY)/fMagnification); // -X +Y, -Z
+		negVertexes.push_back(G4TwoVector(Negative_Posterior_pX,Negative_Posterior_pY)/fMagnification); // +X +Y, -Z
+		negVertexes.push_back(G4TwoVector(Negative_Posterior_pX,Negative_Posterior_nY)/fMagnification); // +X -Y, -Z
+
+		//Anterior to Source
+		negVertexes.push_back(G4TwoVector(Negative_Anterior_nX,Negative_Anterior_nY)/fMagnification); // -X -Y, +Z
+		negVertexes.push_back(G4TwoVector(Negative_Anterior_nX,Negative_Anterior_pY)/fMagnification); // -X +Y, +Z
+		negVertexes.push_back(G4TwoVector(Negative_Anterior_pX,Negative_Anterior_pY)/fMagnification); // +X +Y, +Z
+		negVertexes.push_back(G4TwoVector(Negative_Anterior_pX,Negative_Anterior_nY)/fMagnification); // +X -Y, +Z
+	}
+	else {
+		//Posterior To Source
+		posVertexes.push_back(G4TwoVector(Positive_Posterior_nY,Positive_Posterior_nX)/fMagnification); // -X, -Y, -Z
+		posVertexes.push_back(G4TwoVector(Positive_Posterior_nY,Positive_Posterior_pX)/fMagnification); // -X, +Y, -Z
+		posVertexes.push_back(G4TwoVector(Positive_Posterior_pY,Positive_Posterior_pX)/fMagnification); // +X, +Y, -Z
+		posVertexes.push_back(G4TwoVector(Positive_Posterior_pY,Positive_Posterior_nX)/fMagnification); // +X, -Y, -Z
+
+		//Anterior to Source
+		posVertexes.push_back(G4TwoVector(Positive_Anterior_nY,Positive_Anterior_nX)/fMagnification); // -X, -Y, +Z
+		posVertexes.push_back(G4TwoVector(Positive_Anterior_nY,Positive_Anterior_pX)/fMagnification); // -X, +Y, +Z
+		posVertexes.push_back(G4TwoVector(Positive_Anterior_pY,Positive_Anterior_pX)/fMagnification); // +X, +Y, +Z
+		posVertexes.push_back(G4TwoVector(Positive_Anterior_pY,Positive_Anterior_nX)/fMagnification); // +X, -Y, +Z
+
+		
+		//Posterior to Source
+		negVertexes.push_back(G4TwoVector(Negative_Posterior_nY,Negative_Posterior_nX)/fMagnification); // -X -Y, -Z
+		negVertexes.push_back(G4TwoVector(Negative_Posterior_nY,Negative_Posterior_pX)/fMagnification); // -X +Y, -Z
+		negVertexes.push_back(G4TwoVector(Negative_Posterior_pY,Negative_Posterior_pX)/fMagnification); // +X +Y, -Z
+		negVertexes.push_back(G4TwoVector(Negative_Posterior_pY,Negative_Posterior_nX)/fMagnification); // +X -Y, -Z
+
+		//Anterior to Source
+		negVertexes.push_back(G4TwoVector(Negative_Anterior_nY,Negative_Anterior_nX)/fMagnification); // -X -Y, +Z
+		negVertexes.push_back(G4TwoVector(Negative_Anterior_nY,Negative_Anterior_pX)/fMagnification); // -X +Y, +Z
+		negVertexes.push_back(G4TwoVector(Negative_Anterior_pY,Negative_Anterior_pX)/fMagnification); // +X +Y, +Z
+		negVertexes.push_back(G4TwoVector(Negative_Anterior_pY,Negative_Anterior_nX)/fMagnification); // +X -Y, +Z	
+	}
+
+	G4GenericTrap* posLeaf = new G4GenericTrap("gLeaf_pos",thick * 0.5/fMagnification,posVertexes);
+	G4GenericTrap* negLeaf = new G4GenericTrap("gLeaf_neg",thick * 0.5/fMagnification,negVertexes);
+	return std::make_pair(posLeaf, negLeaf);
 }

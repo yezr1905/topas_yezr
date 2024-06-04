@@ -1,0 +1,32 @@
+#include "TsParameterManager.hh"
+
+template <class T>
+class Creator : public VPhysicsCreator
+{
+private:
+	T* physics;
+
+public:
+	Creator() { physics = 0; }
+	virtual ~Creator()
+	{
+		if (!physics) delete physics;
+	}
+	G4VPhysicsConstructor* operator()() { return physics = new T; }
+};
+
+template <class T>
+class CreatorWithPm : public VPhysicsCreator
+{
+private:
+	T* physics;
+	TsParameterManager* fPm;
+
+public:
+	CreatorWithPm(TsParameterManager* pM) : physics(nullptr), fPm(pM) {}
+	virtual ~CreatorWithPm()
+	{
+		if (physics != nullptr) delete physics;
+	}
+	G4VPhysicsConstructor* operator()() { return physics = new T(fPm); }
+};

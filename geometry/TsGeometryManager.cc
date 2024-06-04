@@ -94,7 +94,11 @@ void TsGeometryManager::SetCurrentComponent(TsVGeometryComponent* currentCompone
 	// Also update map from component name to component pointer.
 	if (currentComponent) {
 		G4String nameLower = currentComponent->GetNameWithCopyId();
+#if GEANT4_VERSION_MAJOR >= 11
+		G4StrUtil::to_lower(nameLower);
+#else
 		nameLower.toLower();
+#endif
 		(*fStore)[nameLower] = currentComponent;
 	}
 }
@@ -123,7 +127,11 @@ G4VPhysicalVolume* TsGeometryManager::Construct()
 		fAlreadyConstructed = true;
 
 	G4String worldComponentType = fPm->GetStringParameter("Ge/World/Type");
+#if GEANT4_VERSION_MAJOR >= 11
+	G4StrUtil::to_lower(worldComponentType);
+#else
 	worldComponentType.toLower();
+#endif
 	if (worldComponentType != "tsbox" && worldComponentType != "tscylinder" && worldComponentType != "tssphere") {
 		G4cerr << "Ge/World/Type has been set to: " << fPm->GetStringParameter("Ge/World/Type") << G4endl;
 		G4cerr << "but the only valid options are TsBox, TsCylinder and TsSphere." << G4endl;
@@ -169,7 +177,7 @@ void TsGeometryManager::ConstructSDandField() {
 		SetCurrentMagneticField(0);
 		SetCurrentElectroMagneticField(0);
 		
-		/*if (fPm->UseVarianceReduction()) {
+		if (fPm->UseVarianceReduction()) {
 			G4int index = -1;
 			if ( fVm->BiasingProcessExists("inelasticsplitting", index) ) {
 				TsInelasticSplitOperator* biasingOperatorIS = new TsInelasticSplitOperator(fPm, "inelasticsplitting");
@@ -210,7 +218,7 @@ void TsGeometryManager::ConstructSDandField() {
 					}
 				}
 			}
-		}*/
+		}
 	}
 #endif
 }
@@ -248,7 +256,11 @@ void TsGeometryManager::NoteAnyUseOfChangeableParameters(const G4String& name)
 		G4String comp = fCurrentComponent->GetNameWithCopyId();
 		G4String directParm = fPm->GetLastDirectParameterName();
 		G4String directParmLower = directParm;
+#if GEANT4_VERSION_MAJOR >= 11
+		G4StrUtil::to_lower(directParmLower);
+#else
 		directParmLower.toLower();
+#endif
 
 		if (directParmLower == fCurrentComponent->GetFullParmNameLower("Type")) {
 			G4cerr << "Topas is exiting due to a serious error." << G4endl;
@@ -260,7 +272,11 @@ void TsGeometryManager::NoteAnyUseOfChangeableParameters(const G4String& name)
 		// See if this parameter has already been registered as used by this component (otherwise if this parameter
 		// is interrogated twice for the same component, the component would update twice for the same change).
 		G4String nameToLower = name;
+#if GEANT4_VERSION_MAJOR >= 11
+		G4StrUtil::to_lower(nameToLower);
+#else
 		nameToLower.toLower();
+#endif
 		G4bool matched = false;
 		std::multimap<G4String,std::pair<G4String,G4String> >::const_iterator iter;
 		for (iter = fChangeableParameterMap.begin(); iter != fChangeableParameterMap.end() && !matched; iter++) {
@@ -292,7 +308,11 @@ void TsGeometryManager::NoteAnyUseOfChangeableParameters(const G4String& name)
 		G4String comp = mComponent->GetNameWithCopyId();
 		G4String directParm = fPm->GetLastDirectParameterName();
 		G4String directParmLower = directParm;
+#if GEANT4_VERSION_MAJOR >= 11
+		G4StrUtil::to_lower(directParmLower);
+#else
 		directParmLower.toLower();
+#endif
 
 		if (directParmLower == mComponent->GetFullParmNameLower("Field")) {
 			G4cerr << "Topas is exiting due to a serious error." << G4endl;
@@ -304,7 +324,11 @@ void TsGeometryManager::NoteAnyUseOfChangeableParameters(const G4String& name)
 		// See if this parameter has already been registered as used by this component (otherwise if this parameter
 		// is interrogated twice for the same component, the component would update twice for the same change).
 		G4String nameToLower = name;
+#if GEANT4_VERSION_MAJOR >= 11
+		G4StrUtil::to_lower(nameToLower);
+#else
 		nameToLower.toLower();
+#endif
 		G4bool matched = false;
 		std::multimap<G4String,std::pair<G4String,G4String> >::const_iterator iter;
 		for (iter = fChangeableMagneticFieldParameterMap.begin(); iter != fChangeableMagneticFieldParameterMap.end() && !matched; iter++) {
@@ -336,7 +360,11 @@ void TsGeometryManager::NoteAnyUseOfChangeableParameters(const G4String& name)
 		G4String comp = mComponent->GetNameWithCopyId();
 		G4String directParm = fPm->GetLastDirectParameterName();
 		G4String directParmLower = directParm;
+#if GEANT4_VERSION_MAJOR >= 11
+		G4StrUtil::to_lower(directParmLower);
+#else
 		directParmLower.toLower();
+#endif
 
 		if (directParmLower == mComponent->GetFullParmNameLower("Field")) {
 			G4cerr << "Topas is exiting due to a serious error." << G4endl;
@@ -348,7 +376,11 @@ void TsGeometryManager::NoteAnyUseOfChangeableParameters(const G4String& name)
 		// See if this parameter has already been registered as used by this component (otherwise if this parameter
 		// is interrogated twice for the same component, the component would update twice for the same change).
 		G4String nameToLower = name;
+#if GEANT4_VERSION_MAJOR >= 11
+		G4StrUtil::to_lower(nameToLower);
+#else
 		nameToLower.toLower();
+#endif
 		G4bool matched = false;
 		std::multimap<G4String,std::pair<G4String,G4String> >::const_iterator iter;
 		for (iter = fChangeableElectroMagneticFieldParameterMap.begin(); iter != fChangeableElectroMagneticFieldParameterMap.end() && !matched; iter++) {
@@ -385,7 +417,11 @@ void TsGeometryManager::UpdateForSpecificParameterChange(G4String parameter) {
 				G4cout << "TsGeometryManager::UpdateForSpecificParameterChange called for parameter: " << parameter <<
 				", matched for component: " << compName << ", direct parameter: " << directParameterName << G4endl;
 			TsVGeometryComponent* component = GetComponent(compName);
+#if GEANT4_VERSION_MAJOR >= 11
+			G4StrUtil::to_lower(directParameterName);
+#else
 			directParameterName.toLower();
+#endif
 			if (component)
 				component->UpdateForSpecificParameterChange(directParameterName);
 			else {
@@ -403,7 +439,11 @@ void TsGeometryManager::UpdateForSpecificParameterChange(G4String parameter) {
 				G4cout << "TsGeometryManager::UpdateForSpecificParameterChange called for magnetic field parameter: " << parameter <<
 				", matched for component: " << compName << ", direct parameter: " << directParameterName << G4endl;
 			TsVGeometryComponent* component = GetComponent(compName);
+#if GEANT4_VERSION_MAJOR >= 11
+			G4StrUtil::to_lower(directParameterName);
+#else
 			directParameterName.toLower();
+#endif
 			if (component)
 				component->UpdateForSpecificMagneticFieldParameterChange(directParameterName);
 			else {
@@ -421,7 +461,11 @@ void TsGeometryManager::UpdateForSpecificParameterChange(G4String parameter) {
 				G4cout << "TsGeometryManager::UpdateForSpecificParameterChange called for electric field parameter: " << parameter <<
 				", matched for component: " << compName << ", direct parameter: " << directParameterName << G4endl;
 			TsVGeometryComponent* component = GetComponent(compName);
+#if GEANT4_VERSION_MAJOR >= 11
+			G4StrUtil::to_lower(directParameterName);
+#else
 			directParameterName.toLower();
+#endif
 			if (component)
 				component->UpdateForSpecificElectroMagneticFieldParameterChange(directParameterName);
 			else {
@@ -479,7 +523,11 @@ void TsGeometryManager::RemoveFromReoptimizeList(G4LogicalVolume* volume) {
 TsVGeometryComponent* TsGeometryManager::GetComponent(G4String& nameWithCopyId)
 {
 	G4String nameWithCopyIdLower = nameWithCopyId;
+#if GEANT4_VERSION_MAJOR >= 11
+	G4StrUtil::to_lower(nameWithCopyIdLower);
+#else
 	nameWithCopyIdLower.toLower();
+#endif
 
 	std::map<G4String, TsVGeometryComponent*>::const_iterator iter = fStore->find(nameWithCopyIdLower);
 	if (iter == fStore->end())
@@ -515,7 +563,11 @@ G4String TsGeometryManager::GetCopyIdFromBinning(G4int i, G4int j, G4int k) {
 std::vector<G4String> TsGeometryManager::GetChildComponentsOf(G4String& parentName)
 {
 	G4String parentNameLower = parentName;
+#if GEANT4_VERSION_MAJOR >= 11
+	G4StrUtil::to_lower(parentNameLower);
+#else
 	parentNameLower.toLower();
+#endif
 	std::vector<G4String> components;
 
 	// Find all parameters bracketed by Ge/ and /Parent
@@ -529,7 +581,11 @@ std::vector<G4String> TsGeometryManager::GetChildComponentsOf(G4String& parentNa
 	for (G4int iToken=0; iToken<length; iToken++) {
 		G4String parameterName = (*values)[iToken];
 		G4String value = fPm->GetStringParameter(parameterName);
+#if GEANT4_VERSION_MAJOR >= 11
+		G4StrUtil::to_lower(value);
+#else
 		value.toLower();
+#endif
 
 		if (value==parentNameLower) {
 			G4String componentName = parameterName.substr(3,parameterName.length()-10);
@@ -552,7 +608,11 @@ std::vector<G4String> TsGeometryManager::GetChildComponentsOf(G4String& parentNa
 
 void TsGeometryManager::UnRegisterComponent(G4String& name) {
 	G4String nameLower = name;
+#if GEANT4_VERSION_MAJOR >= 11
+	G4StrUtil::to_lower(nameLower);
+#else
 	nameLower.toLower();
+#endif
 	fStore->erase(nameLower);
 }
 
@@ -657,7 +717,11 @@ std::set<G4String>* TsGeometryManager::GetParallelWorldsWithMaterial() {
 
 
 void TsGeometryManager::RegisterToIgnoreInUnusedComponentCheck(G4String name) {
+#if GEANT4_VERSION_MAJOR >= 11
+	G4StrUtil::to_lower(name);
+#else
 	name.toLower();
+#endif
 	fNamesToIgnoreInUnusedComponentCheck->insert(name);
 }
 
@@ -670,7 +734,11 @@ void TsGeometryManager::SetGeometricalTolerance(G4double newTolerance){
 
 
 G4bool TsGeometryManager::IgnoreInUnusedComponentCheck(G4String name) {
+#if GEANT4_VERSION_MAJOR >= 11
+	G4StrUtil::to_lower(name);
+#else
 	name.toLower();
+#endif
 	std::set<G4String>::const_iterator iter;
 	for (iter=fNamesToIgnoreInUnusedComponentCheck->begin(); iter!=fNamesToIgnoreInUnusedComponentCheck->end(); iter++)
 		if (*iter == name)
@@ -721,7 +789,11 @@ G4OpticalSurface* TsGeometryManager::GetOpticalSurface(G4String surfaceName) {
 		opticalSurface = new G4OpticalSurface(surfaceName);
 
 		G4String model = fPm->GetStringParameter(GetFullSurfaceParmName(surfaceName, "Model"));
+#if GEANT4_VERSION_MAJOR >= 11
+		G4StrUtil::to_lower(model);
+#else
 		model.toLower();
+#endif
 		if (model == "glisur")
 			opticalSurface->SetModel(glisur);
 		else if (model == "unified")
@@ -731,7 +803,11 @@ G4OpticalSurface* TsGeometryManager::GetOpticalSurface(G4String surfaceName) {
 				 "Refers to an unkown optical surface model");
 
 		G4String finish = fPm->GetStringParameter(GetFullSurfaceParmName(surfaceName, "Finish"));
+#if GEANT4_VERSION_MAJOR >= 11
+		G4StrUtil::to_lower(finish);
+#else
 		finish.toLower();
+#endif
 		if (finish == "ground")
 			opticalSurface->SetFinish(ground);
 		else if (finish == "groundfrontpainted")
@@ -749,7 +825,11 @@ G4OpticalSurface* TsGeometryManager::GetOpticalSurface(G4String surfaceName) {
 				 "Refers to an unknown optical surface finish");
 
 		G4String type = fPm->GetStringParameter(GetFullSurfaceParmName(surfaceName, "Type"));
+#if GEANT4_VERSION_MAJOR >= 11
+		G4StrUtil::to_lower(type);
+#else
 		type.toLower();
+#endif
 		if (type == "dielectric_dielectric")
 			opticalSurface->SetType(dielectric_dielectric);
 		else if (type == "dielectric_metal")

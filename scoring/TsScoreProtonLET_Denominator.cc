@@ -21,7 +21,11 @@ TsScoreProtonLET_Denominator::TsScoreProtonLET_Denominator(TsParameterManager* p
 	G4String weightType = "dose";
 	if (fPm->ParameterExists(GetFullParmName("WeightBy")))
 		weightType = fPm->GetStringParameter(GetFullParmName("WeightBy"));
-	weightType.toLower();
+#if GEANT4_VERSION_MAJOR >= 11
+    G4StrUtil::to_lower(weightType);
+#else
+    weightType.toLower();
+#endif
 
 	if (weightType == "dose") {
 		fDoseWeighted = true;

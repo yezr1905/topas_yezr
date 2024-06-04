@@ -43,9 +43,14 @@ G4VUserPhysicsList* TsPhysicsManager::GetPhysicsList() {
 	if (fPm->ParameterExists(GetFullParmName("Type"))) {
 		G4String listType = fPm->GetStringParameter(GetFullParmName("Type"));
 		G4String lowerListType = listType;
-		lowerListType.toLower();
 		G4String upperListType = listType;
+#if GEANT4_VERSION_MAJOR >= 11
+		G4StrUtil::to_lower(lowerListType);
+		G4StrUtil::to_upper(upperListType);
+#else
+		lowerListType.toLower();
 		upperListType.toUpper();
+#endif
 
 		G4PhysListFactory ReferenceList;
 		if (ReferenceList.IsReferencePhysList( upperListType ) || lowerListType=="shielding") {
@@ -76,49 +81,49 @@ G4VUserPhysicsList* TsPhysicsManager::GetPhysicsList() {
 			TsModularPhysicsList* tsList = new TsModularPhysicsList(fPm, fGm, fVm, fPhysicsListName);
 
 			tsList->RegisterPhysics(new G4StepLimiterPhysics());
-			//if (fPm->UseVarianceReduction()) {
-			//	G4int index = -1;
-			//	if ( fVm->BiasingProcessExists("geometricalparticlesplit", index)) {
-			//		tsList->AddBiasing(fProtonGeomSamplers);
-			//	}
-			//}
+			if (fPm->UseVarianceReduction()) {
+				G4int index = -1;
+				if ( fVm->BiasingProcessExists("geometricalparticlesplit", index)) {
+					tsList->AddBiasing(fProtonGeomSamplers);
+				}
+			}
 
 			for (G4int i=0; i < modules_size; ++i)
 				tsList->AddModule(modules[i]);
 
-			//if (fPm->UseVarianceReduction()) {
-			//	G4int index = -1;
-			//	if ( fVm->BiasingProcessExists("inelasticsplitting", index)) {
-			//		G4GenericBiasingPhysics* bPIS = dynamic_cast<TsInelasticSplitManager*>
-			//		(fVm->GetBiasingProcessFromList(index))->GetGenericBiasingPhysics();
-			//		tsList->RegisterPhysics(bPIS);
-			//	}
-			//	index = -1;
-			//	if ( fVm->BiasingProcessExists("automaticimportancesampling", index)) {
-			//		G4GenericBiasingPhysics* bPAIS = dynamic_cast<TsAutomaticImportanceSamplingManager*>
-			//		(fVm->GetBiasingProcessFromList(index))->GetGenericBiasingPhysics();
-			//		tsList->RegisterPhysics(bPAIS);
-			//	}
-			//	index = -1;
-			//	if ( fVm->BiasingProcessExists("automaticimportancesamplingparallel", index)) {
-			//		G4GenericBiasingPhysics* bPAISP = dynamic_cast<TsAutomaticImportanceSamplingParallelManager*>
-			//		(fVm->GetBiasingProcessFromList(index))->GetGenericBiasingPhysics();
-			//		tsList->RegisterPhysics(bPAISP);
-			//	}
-			//}
+			if (fPm->UseVarianceReduction()) {
+				G4int index = -1;
+				if ( fVm->BiasingProcessExists("inelasticsplitting", index)) {
+					G4GenericBiasingPhysics* bPIS = dynamic_cast<TsInelasticSplitManager*>
+					(fVm->GetBiasingProcessFromList(index))->GetGenericBiasingPhysics();
+					tsList->RegisterPhysics(bPIS);
+				}
+				index = -1;
+				if ( fVm->BiasingProcessExists("automaticimportancesampling", index)) {
+					G4GenericBiasingPhysics* bPAIS = dynamic_cast<TsAutomaticImportanceSamplingManager*>
+					(fVm->GetBiasingProcessFromList(index))->GetGenericBiasingPhysics();
+					tsList->RegisterPhysics(bPAIS);
+				}
+				index = -1;
+				if ( fVm->BiasingProcessExists("automaticimportancesamplingparallel", index)) {
+					G4GenericBiasingPhysics* bPAISP = dynamic_cast<TsAutomaticImportanceSamplingParallelManager*>
+					(fVm->GetBiasingProcessFromList(index))->GetGenericBiasingPhysics();
+					tsList->RegisterPhysics(bPAISP);
+				}
+			}
 
 			if (!fPm->ParameterExists("Ph/SetEmParametersInTsModularPhysicsList") || !fPm->GetBooleanParameter("Ph/SetEmParametersInTsModularPhysicsList"))
 				SetEmParameters();
 
 			physicsList = tsList;
-		//} else {
-		//	physicsList = fEm->InstantiatePhysicsList(fPm, lowerListType);
+		} else {
+			//physicsList = fEm->InstantiatePhysicsList(fPm, lowerListType);
 
-		//	if (physicsList==0) {
-		//		G4cerr << "Topas is exiting due to a serious error in physics setup." << G4endl;
-		//		G4cerr << "Your parameter: " << GetFullParmName("Type") << " has an unknown physics list type:" << listType << G4endl;
-		//		fPm->AbortSession(1);
-		//	}
+			//if (physicsList==0) {
+			//	G4cerr << "Topas is exiting due to a serious error in physics setup." << G4endl;
+			//	G4cerr << "Your parameter: " << GetFullParmName("Type") << " has an unknown physics list type:" << listType << G4endl;
+				fPm->AbortSession(1);
+			//}
 		}
 
 	} else {
@@ -149,11 +154,26 @@ void TsPhysicsManager::SetEmParameters() {
 	if (fPm->ParameterExists(GetFullParmName("EMRangeMax")))
 		G4EmParameters::Instance()->SetMaxEnergy(fPm->GetDoubleParameter(GetFullParmName("EMRangeMax"), "Energy"));
 
-	//if (fPm->ParameterExists(GetFullParmName("EMBins")))
-	//	G4EmParameters::Instance()->SetNumberOfBins(fPm->GetIntegerParameter(GetFullParmName("EMBins")));
+#if GEANT4_VERSION_MAJOR >= 11
+	if (fPm->ParameterExists(GetFullParmName("EMBins")) && !fPm->ParameterExists(GetFullParmName("EMBinsPerDecade")))
+		G4EmParameters::Instance()->SetNumberOfBinsPerDecade(fPm->GetIntegerParameter(GetFullParmName("EMBins")));
+
+	else if (!fPm->ParameterExists(GetFullParmName("EMBins")) && fPm->ParameterExists(GetFullParmName("EMBinsPerDecade")))
+		G4EmParameters::Instance()->SetNumberOfBinsPerDecade(fPm->GetIntegerParameter(GetFullParmName("EMBinsPerDecade")));
+
+	else if (fPm->ParameterExists(GetFullParmName("EMBins")) && fPm->ParameterExists(GetFullParmName("EMBinsPerDecade"))) {
+		G4cerr << "Topas is exiting due to a serious error in physics setup." << G4endl;
+		G4cerr << GetFullParmName("EMBins") << " and " << GetFullParmName("EMBinsPerDecade") << "are not compatible at the same time." << G4endl;
+		G4cerr << "Remove either of them and re-run Topas." << G4endl;
+		fPm->AbortSession(1);
+	}
+#else
+	if (fPm->ParameterExists(GetFullParmName("EMBins")))
+		G4EmParameters::Instance()->SetNumberOfBins(fPm->GetIntegerParameter(GetFullParmName("EMBins")));
 
 	if (fPm->ParameterExists(GetFullParmName("EMBinsPerDecade")))
 		G4EmParameters::Instance()->SetNumberOfBinsPerDecade(fPm->GetIntegerParameter(GetFullParmName("EMBinsPerDecade")));
+#endif
 
 	if (fPm->ParameterExists(GetFullParmName("dEdXBins"))) {
 		G4cerr << "Topas is exiting due to a serious error in physics setup." << G4endl;
@@ -206,7 +226,11 @@ void TsPhysicsManager::SetEmParameters() {
 
 	if (fPm->ParameterExists(GetFullParmName("MSCStepLimitType"))) {
 		G4String mscStepLimitType = fPm->GetStringParameter(GetFullParmName("MSCStepLimitType"));
+#if GEANT4_VERSION_MAJOR >= 11
+		G4StrUtil::to_lower(mscStepLimitType);
+#else
 		mscStepLimitType.toLower();
+#endif
 		if (mscStepLimitType == "safety" ) {
 			G4EmParameters::Instance()->SetMscStepLimitType(fUseSafety);
 		} else if (mscStepLimitType == "safetyplus") {
@@ -224,7 +248,11 @@ void TsPhysicsManager::SetEmParameters() {
 	if ( fPm->ParameterExists(GetFullParmName("SolvatedElectronThermalizationModel")) ) {
 		G4String eaqModel = fPm->GetStringParameter(GetFullParmName("SolvatedElectronThermalizationModel"));
 
+#if GEANT4_VERSION_MAJOR >= 11
+		G4StrUtil::to_lower(eaqModel);
+#else
 		eaqModel.toLower();
+#endif
 		if ( eaqModel == "ritchie" ) {
 			G4EmParameters::Instance()->SetDNAeSolvationSubType(fRitchie1994eSolvation);
 		} else if ( eaqModel == "terrisol" ) {

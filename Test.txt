@@ -1,0 +1,103 @@
+i:NPS=5000000
+
+i:Ts/Seed = 1 # Default is 1
+
+b:Gr/Enable = "False"
+# b:Ts/UseQt = "True"
+# b:Ts/PauseBeforeQuit = "True"
+b:Ts/ShowCPUTime = "True"
+# s:Gr/ViewA/FileName = "env4"
+# s:Gr/RefreshEvery = "Session" # "History", "Run" or "Session"
+# b:Gr/ViewA/CopyOpenGLToSVG = "True" # save to Scalable Vector Graphics
+# b:Gr/ViewA/CopyOpenGLToPDF = "True" # save to PDF
+
+b:Ts/ShowHistoryCountOnSingleLine = "True"
+# i:Ts/ShowHistoryCountAtInterval = 100
+# i:Ts/TrackingVerbosity = 1
+
+i:Ts/NumberOfThreads =0
+
+s:Ge/World/Material    = "Vacuum"
+# s:Ge/World/Type        ="TsBox"
+# d:Ge/World/HLX         = 1.0 m
+# d:Ge/World/HLY         = 1.0 m
+# d:Ge/World/HLZ         = 1.0 cm
+s:Ge/World/Type        ="TsSphere"
+d:Ge/World/RMax        = 20 cm
+# b:Ge/World/Invisible   = "True"
+
+s:Ge/SourceGroup/Type    = "Group"
+s:Ge/SourceGroup/Parent  ="World"
+d:Ge/SourceGroup/TransZ  = 5 cm
+d:Ge/SourceGroup/RotX    = 180 deg
+
+s:Ge/ScorerBox2/Type = "TsBox"
+s:Ge/ScorerBox2/Material = "G4_WATER"
+s:Ge/ScorerBox2/Parent   = "World"
+d:Ge/ScorerBox2/HLX = 5 cm
+d:Ge/ScorerBox2/HLY = 5 cm
+d:Ge/ScorerBox2/HLZ = 5 cm
+d:Ge/ScorerBox2/TransX   = 0 cm
+d:Ge/ScorerBox2/TransY   = 0 cm
+d:Ge/ScorerBox2/TransZ   = -10 cm
+i:Ge/ScorerBox2/ZBins    = 10
+
+s:Sc/BoxEnergyDeposit/Quantity = "EnergyDeposit"
+sv:Sc/BoxEnergyDeposit/Report = 2 "Sum" "Count_In_Bin"
+s:Sc/BoxEnergyDeposit/Component = "ScorerBox2"
+s:Sc/BoxEnergyDeposit/IfOutputFileAlreadyExists = "Overwrite"
+b:Sc/BoxEnergyDeposit/OutputToConsole = "True"
+s:Sc/BoxEnergyDeposit/OutputType = "csv"
+
+ic:So/TestSource/NumberOfHistoriesInRun  = NPS
+s:So/TestSource/Type                     = "Beam"
+# u:So/TestSource/CosThetaLimitZ           = 0.999
+s:So/TestSource/Component                = "SourceGroup"
+s:So/TestSource/BeamParticle             = "alpha"
+d:So/TestSource/BeamEnergy               = 100 MeV
+s:So/TestSource/BeamPositionDistribution = "None"
+s:So/TestSource/BeamAngularDistribution  = "None"
+# s:So/TestSource/BeamEnergySpectrumType = "Continuous" # "Discrete" or "Continuous"
+# dv:So/TestSource/BeamEnergySpectrumValues = ZXE MeV
+# uv:So/TestSource/BeamEnergySpectrumWeights = ZXF
+# E means Energy, F means Flux Ratio
+# dv:ZXE = ZEXX MeV
+# uv:ZXF = ZFXX
+
+# Phys List setting #####################
+# s:Ph/ListName = "MyList"
+# b:Ph/ListProcesses = "False" # Set true to dump list of active physics processes to console
+# s:Ph/MyList/Type = "Geant4_Modular"
+# sv:Ph/MyList/Modules = 1 "g4em-standard_opt4"
+# sv:Ph/MyList/Modules = 8 "g4em-standard_opt4" "g4em-extra" "g4decay" "g4h-elastic" "g4h-phy_FTFP_BERT" "g4stopping" "g4ion" "g4n-trackingcut"
+# d:Ph/MyList/CutForAllParticles = 0.5 m # single range cut to use for all particles
+# d:Ph/MyList/CutForElectron = 0.5 m
+# d:Ph/MyList/EMRangeMin = 5. keV
+# d:Ph/MyList/EMRangeMax = 300. MeV
+
+# sv:Ph/MyList/Modules = 1 "Transportation_Only"
+
+s:Ph/ListName = "MyList1"
+# s:Ph/MyList1/Type = "QGSP_BERT_HP"
+s:Ph/MyList1/Type = "FTFP_BERT"
+# s:Ph/MyList1/Type = "FTFP_INCLXX_HP"
+# s:Ph/MyList1/Type = "My_FTFP_BERT"
+
+s:Gr/ViewA/Type     = "OpenGL"
+i:Gr/ViewA/WindowSizeX  = 1024
+i:Gr/ViewA/WindowSizeY  = 768
+b:Gr/ViewA/IncludeAxes  = "True"
+d:Gr/ViewA/AxesSize = 1. m # size of axes
+d:Gr/ViewA/Theta    = -45 deg
+d:Gr/ViewA/Phi      = -50 deg
+s:Gr/ViewA/Projection   = "Perspective"
+d:Gr/ViewA/PerspectiveAngle = 30. deg
+u:Gr/ViewA/Zoom     = 1.5
+sv:Gr/ViewA/VisibleWorlds = 1 "All"
+i:Gr/ShowOnlyOutlineIfVoxelCountExceeds = 210000000
+s:Gr/ViewA/CenterOn = "ScorerBox2"
+
+# s:Ge/TestBox/DrawingStyle = "Solid" # "Solid", "Wireframe" or "FullWireFrame".
+# # FullWireFrame includes drawing of additional edge lines that Geant4 calls "soft edges"
+# # - on many graphics devices WireFrame and FullWireFrame give the same result
+# s:Ge/Source1/DrawingStyle = "Solid"

@@ -56,7 +56,12 @@ G4String TsDoubleFromTimeFeature::GetHTMLValue()
 void TsDoubleFromTimeFeature::InitializeTimeFeatureValue() {
 	G4String funcValue = fPm->GetStringParameter(G4String(fNameOfBaseParameter+"/Function"));
 	G4Tokenizer next(funcValue);
-	G4String funcname = next(); funcname.toLower();
+	G4String funcname = next(); 
+#if GEANT4_VERSION_MAJOR >= 11
+	G4StrUtil::to_lower(funcname);
+#else
+	funcname.toLower();
+#endif
 	G4String category = fPm->GetUnitCategory(fUnit) + "/Time";
 	G4double rate       = fPm->GetDoubleParameter(G4String(fNameOfBaseParameter+"/Rate"), category);
 	G4double startvalue = fPm->GetDoubleParameter(G4String(fNameOfBaseParameter+"/StartValue"), fPm->GetUnitCategory(fUnit));

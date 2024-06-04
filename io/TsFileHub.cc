@@ -24,7 +24,11 @@ TsVFile* TsFileHub::InstantiateFile(TsParameterManager* pM,
 									  G4String fileName, G4String fileMode, G4String fileType,
 									  TsVFile *masterFile)
 {
+#if GEANT4_VERSION_MAJOR >= 11
+	G4StrUtil::to_lower(fileType);
+#else
 	fileType.toLower();
+#endif
 
 	if (fileType == "ascii") {
 		return new TsNtupleAscii(pM, fileName, fileMode, masterFile);

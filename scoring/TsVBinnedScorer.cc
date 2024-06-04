@@ -33,7 +33,7 @@
 #include <sstream>
 #include <iomanip>
 
-using G4VTouchable = G4TouchableHistory;
+//using G4VTouchable = G4TouchableHistory;
 
 TsVBinnedScorer::TsVBinnedScorer(TsParameterManager* pM, TsMaterialManager* mM, TsGeometryManager* gM, TsScoringManager* scM,
 									   G4String scorerName, G4String quantity, G4String outFileName, G4bool isSubScorer)
@@ -80,7 +80,11 @@ fSumLimit(0.), fStandardDeviationLimit(0.), fRelativeSDLimit(0.), fCountLimit(0)
 	G4String reportValue;
 	for (G4int i = 0; i < fNReportValues; i++) {
 		reportValue = reportValues[i];
+#if GEANT4_VERSION_MAJOR >= 11
+		G4StrUtil::to_lower(reportValue);
+#else
 		reportValue.toLower();
+#endif
 		if (reportValue == "sum") {
 			fReportSum = true;
 			fReportValues[i] = 0;
@@ -290,7 +294,11 @@ void TsVBinnedScorer::GetAppropriatelyBinnedCopyOfComponent(G4String componentNa
 	if (fPm->ParameterExists(GetFullParmName("EBins"))) {
 		if (fPm->ParameterExists(GetFullParmName("EBinEnergy"))) {
 			G4String EBinEnergy = fPm->GetStringParameter(GetFullParmName("EBinEnergy"));
+#if GEANT4_VERSION_MAJOR >= 11
+			G4StrUtil::to_lower(EBinEnergy);
+#else
 			EBinEnergy.toLower();
+#endif
 			if (EBinEnergy == "incidenttrack")
 				fBinByIncidentEnergy = true;
 			else if (EBinEnergy == "prestep")
@@ -699,7 +707,11 @@ void TsVBinnedScorer::PostConstructor()
 			<< fPm->GetStringParameter(GetFullParmName("OutputType")) << G4endl;
 
 			G4String quantityNameLower = fQuantity;
+#if GEANT4_VERSION_MAJOR >= 11
+			G4StrUtil::to_lower(quantityNameLower);
+#else
 			quantityNameLower.toLower();
+#endif
 			if (quantityNameLower == "phasespace")
 				G4cerr << "OutputType must be either ASCII, Binary or Limited." << G4endl;
 			else
@@ -816,7 +828,11 @@ void TsVBinnedScorer::ActuallySetUnit(const G4String& theUnitName)
 	// ColorBy option will trigger extra reporting option if needed.
 	if (fPm->ParameterExists(GetFullParmName("ColorBy"))) {
 		fColorBy = fPm->GetStringParameter(GetFullParmName("ColorBy"));
+#if GEANT4_VERSION_MAJOR >= 11
+		G4StrUtil::to_lower(fColorBy);
+#else
 		fColorBy.toLower();
+#endif
 
 		if (!fPm->ParameterExists(GetFullParmName("ColorNames"))) {
 			G4cerr << "Topas is exiting due to a serious error in scoring." << G4endl;
@@ -1203,7 +1219,11 @@ void TsVBinnedScorer::RestoreResultsFromFile()
 	fRestoreResultsFromFile = true;
 
 	G4String inputType = fPm->GetStringParameter(GetFullParmName("InputType"));
+#if GEANT4_VERSION_MAJOR >= 11
+	G4StrUtil::to_lower(inputType);
+#else
 	inputType.toLower();
+#endif
 
 	G4String inputFileSpec;
 
@@ -2318,7 +2338,11 @@ G4String TsVBinnedScorer::ConfirmCanOpen(G4String fileName, G4String fileExt, G4
 	if (fin.is_open()) {
 		if (fPm->ParameterExists(GetFullParmName("IfOutputFileAlreadyExists"))) {
 			G4String howToHandle = fPm->GetStringParameter(GetFullParmName("IfOutputFileAlreadyExists"));
+#if GEANT4_VERSION_MAJOR >= 11
+			G4StrUtil::to_lower(howToHandle);
+#else
 			howToHandle.toLower();
+#endif
 			if (howToHandle == "overwrite") {
 				// Continue to use this file spec
 			} else if (howToHandle == "increment") {

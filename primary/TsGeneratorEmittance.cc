@@ -16,7 +16,11 @@ void TsGeneratorEmittance::ResolveParameters(){
 	TsVGenerator::ResolveParameters();
 
 	fEmittanceDistName = fPm->GetStringParameter(GetFullParmName("Distribution"));
-	fEmittanceDistName.toLower();
+#if GEANT4_VERSION_MAJOR >= 11
+   	G4StrUtil::to_lower(fEmittanceDistName);
+#else
+    fEmittanceDistName.toLower();
+#endif
 
 	if ( fEmittanceDistName == "bigaussian" ){
 		fEmittanceDistType = BiGaussian;
@@ -104,7 +108,11 @@ void TsGeneratorEmittance::ResolveParameters(){
 	fBeamShape = NONE;
 	if (fPm->ParameterExists(GetFullParmName("BeamPositionCutoffShape"))) {
 		G4String beamShape = fPm->GetStringParameter(GetFullParmName("BeamPositionCutoffShape"));
-		beamShape.toLower();
+#if GEANT4_VERSION_MAJOR >= 11
+   		G4StrUtil::to_lower(beamShape);
+#else
+    	beamShape.toLower();
+#endif
 		if (beamShape == "rectangle")
 			fBeamShape = RECTANGLE;
 		else if (beamShape == "ellipse")

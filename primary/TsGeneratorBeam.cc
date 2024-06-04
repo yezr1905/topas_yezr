@@ -23,7 +23,11 @@ void TsGeneratorBeam::ResolveParameters() {
 
 	// Validate parameters for position distribution
 	G4String dist = fPm->GetStringParameter(GetFullParmName("BeamPositionDistribution"));
+#if GEANT4_VERSION_MAJOR >= 11
+	G4StrUtil::to_lower(dist);
+#else
 	dist.toLower();
+#endif
 	if (dist == "none")
 		fPositionDistribution = NONE;
 	else if (dist == "flat")
@@ -39,7 +43,11 @@ void TsGeneratorBeam::ResolveParameters() {
 
 	if (fPositionDistribution == FLAT || fPositionDistribution == GAUSSIAN) {
 		G4String beamShape = fPm->GetStringParameter(GetFullParmName("BeamPositionCutoffShape"));
+#if GEANT4_VERSION_MAJOR >= 11
+		G4StrUtil::to_lower(beamShape);
+#else
 		beamShape.toLower();
+#endif
 		if (beamShape == "rectangle")
 			fBeamShape = RECTANGLE;
 		else if (beamShape == "ellipse")
@@ -79,7 +87,11 @@ void TsGeneratorBeam::ResolveParameters() {
 
 	// Validate parameters for angular distribution
 	dist = fPm->GetStringParameter(GetFullParmName("BeamAngularDistribution"));
+#if GEANT4_VERSION_MAJOR >= 11
+	G4StrUtil::to_lower(dist);
+#else
 	dist.toLower();
+#endif
 	if (dist == "none")
 		fAngularDistribution = NONE;
 	else if (dist == "flat")

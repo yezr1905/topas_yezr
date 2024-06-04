@@ -193,7 +193,11 @@ void TsGeneratorManager::NoteAnyUseOfChangeableParameters(const G4String& name)
 		// is interrogated twice for the same generator, the generator would update twice for the same change).
 		G4bool matched = false;
 		G4String nameToLower = name;
+#if GEANT4_VERSION_MAJOR >= 11
+		G4StrUtil::to_lower(nameToLower);
+#else
 		nameToLower.toLower();
+#endif
 		std::multimap< G4String, std::pair<TsVGenerator*,G4String> >::const_iterator iter;
 		for (iter = fChangeableParameterMap.begin(); iter != fChangeableParameterMap.end() && !matched; iter++) {
 			G4String gotParm = iter->first;
